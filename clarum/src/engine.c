@@ -24,7 +24,7 @@ isReferencedOption(
     if (byTag)
         return *str == option->tag;
     else
-        return !strcmp(str, option->name);
+        return !memcmp(str, option->name, strlen(option->name));
 }
 
 static inline cla_option_t *
@@ -118,7 +118,7 @@ parseOptions(
                 status = parseOption(parser, &argument[i], true);
         } else {
             /* Complete '--name' (name) form. */
-            status = parseOption(parser, ++argument, false);
+            status = parseOption(parser, &argument[2], false);
         }
     }
 

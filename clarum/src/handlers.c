@@ -63,14 +63,17 @@ parseIntegerFromDecimalString(
     char const *str
 ) {
     const size_t
-        maximumStringLength = ceil(log10(SIZE_MAX)) + 1;
+        maximumStringLength = (size_t) ceil(log10(SIZE_MAX)) + 1;
 
     if (!value || !str)
         return cla_nullReferenceError;
 
-    if (strlen(str) >= maximumStringLength)
+    if (strlen(str) > maximumStringLength)
         /* @str is too long to be decimal string. */
         return cla_illegalInputError;
+
+    /* Resets holder value. */
+    *value = 0;
 
     for (; *str; ++str) {
         size_t const
