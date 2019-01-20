@@ -63,12 +63,12 @@ struct cla_option_t {
     /// and is set by handler when option is processed, optional.
     void *value;
 
+    /// Callback function to be invoked when option is parsed, optional.
+    cla_handler_t * const handler;
+
     /// Argument value fetched from CLI arguments string.
     /// Points to first argument character in argv, when arguments is specified.
     char const *argument;
-
-    /// Callback function to be invoked when option is parsed, optional.
-    cla_handler_t * const handler;
 
     /// If set to `true`, encountering this option stops further parsing.
     bool const doesStopParser;
