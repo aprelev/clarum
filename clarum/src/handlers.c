@@ -124,6 +124,7 @@ cla_stringReferenceHandler(
     (void) parser;
 
     return option->argument
-        ? *((char const **) option->value) = option->argument, cla_noErrors
+        /* @option->argument was set from mutable argv, so it's OK. */
+        ? option->value = (char *) option->argument, cla_noErrors
         : cla_nullReferenceError;
 }
