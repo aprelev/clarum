@@ -136,6 +136,32 @@ describe(clarum) {
             asserteq(options[0].isSet, true, "value was not reported as set");
             asserteq_str(value, "foo", "argument was not parsed");
         }
+        it("parses short string option") {
+            char
+                *argv[] = {"binary", "-s=foo"},
+                *value = NULL;
+            int
+                argc = sizeof argv / sizeof *argv;
+            cla_option_t
+                options[] = {{
+                        .tag = 's',
+                        .name = "string",
+                        .valuePtr = &value,
+                        .handler = &cla_stringHandler,
+                    },
+                };
+            size_t const
+                numberOfOptions = sizeof options / sizeof *options;
+            cla_parser_t
+                parser = {
+                    .options = options,
+                    .numberOfOptions = numberOfOptions,
+                };
+
+            asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
+            asserteq(options[0].isSet, true, "value was not reported as set");
+            asserteq_str(value, "foo", "argument was not parsed");
+        }
     }
 }
 
