@@ -16,6 +16,20 @@ isEscapeCharacter(
 }
 
 static inline bool
+isDelimiterCharacter(
+    char chr
+) {
+    return chr == '=';
+}
+
+static inline bool
+isOptionCharacter(
+    char chr
+) {
+    return chr && !isEscapeCharacter(chr) && !isDelimiterCharacter(chr);
+}
+
+static inline bool
 isReferencedOption(
     cla_option_t const *option,
     char const *str,
@@ -48,14 +62,13 @@ static inline char *
 getArgument(
     char *str
 ) {
-    char
-        *argument = strchr(str, '=');
+    for (size_t i = 0; i < strlen(str); ++i) {
+        if (isDelimiterCharacter(str[i]))
+            /* Skips found delimiter. */
+            return &str[i + 1];
+    }
 
-    if (argument)
-        /* If found '=' delimiter, skips it. */
-        ++argument;
-
-    return argument;
+    return NULL;
 }
 
 static inline int
@@ -64,33 +77,31 @@ parseOption(
     char *str,
     bool byTag
 ) {
-    switch (*str) {
-        case '\0':
-            /* Argument is '--', this stops parsing by convention. */
-            return cla_noErrors;
-
-        case '=':
-            /* Argument has no name: '--='. */
-            return cla_illegalInputError;
-
-        default: {
-            cla_option_t
-                *option = getOption(parser, str, byTag);
-
-            if (!option) {
-                parser->isStopped = parser->doesStopOnUnknownOptions;
-                return cla_noErrors;
-            }
-
-            option->argument = getArgument(str);
-            option->isSet = true;
-            parser->isStopped = option->doesStopParser;
-
-            return option->handler
-                ? option->handler(parser, option)
-                : cla_noErrors;
-        }
+    if (!str[0]) {
+        /* Argument is '--', this stops parsing by convention. */
+        return cla_noErrors;
     }
+    
+    if (isOptionCharacter(str[0])) {
+        cla_option_t
+            *option = getOption(parser, str, byTag);
+
+        if (!option) {
+            parser->isStopped = parser->doesStopOnUnknownOptions;
+            return cla_noErrors;
+        }
+
+        option->argument = getArgument(str);
+        option->isSet = true;
+        parser->isStopped = option->doesStopParser;
+
+        return option->handler
+            ? option->handler(parser, option)
+            : cla_noErrors;
+    }
+
+    /* Argument contains illegal characters sequence, e.g. '--='. */
+    return cla_illegalInputError;
 }
 
 static inline int
@@ -114,7 +125,7 @@ parseOptions(
 
         if (!isEscapeCharacter(argument[1])) {
             /* Short '-x' or '-abc' (tag) form. */
-            for (size_t i = 1; argument[i] && !status; ++i)
+            for (size_t i = 1; isOptionCharacter(argument[i]) && !status; ++i)
                 status = parseOption(parser, &argument[i], true);
         } else {
             /* Complete '--name' (name) form. */
