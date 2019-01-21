@@ -167,4 +167,28 @@ describe(interface) {
         asserteq(options[1].isReferenced, false, "second option was reported as referenced");
         asserteq(value, false, "second option value was decoded");
     }
+
+    it("reports missing options") {
+        char
+            *argv[] = {"binary", "--foo"};
+        int
+            argc = sizeof argv / sizeof *argv;
+        cla_option_t
+            options[] = {{
+                    .name = "foo",
+                },{
+                    .name = "bar",
+                    .isRequired = true,
+                },
+            };
+        size_t const
+            numberOfOptions = sizeof options / sizeof *options;
+        cla_parser_t
+            parser = {
+                .options = options,
+                .numberOfOptions = numberOfOptions,
+            };
+
+        asserteq(cla_parseOptions(&parser, argc, argv), cla_missingOptionError, "error was not returned");
+    }
 }
