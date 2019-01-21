@@ -31,17 +31,17 @@ cla_booleanHandler(
 ) {
     (void) parser;
 
-    if (!option->value)
+    if (!option->valuePtr)
         /* No value holder provided. */
         return cla_nullReferenceError;
 
     if (!option->argument) {
         /* No explicit value is passed, this counts as true. */
-        *((bool *) option->value) = true;
+        *((bool *) option->valuePtr) = true;
         return cla_noErrors;
     }
 
-    return decodeBooleanValue(option->value, option->argument);
+    return decodeBooleanValue(option->valuePtr, option->argument);
 }
 
 static inline size_t
@@ -103,24 +103,12 @@ cla_integerHandler(
     (void) parser;
 
     return option->argument
-        ? parseIntegerFromDecimalString(option->value, option->argument)
+        ? parseIntegerFromDecimalString(option->valuePtr, option->argument)
         : cla_nullReferenceError;
 }
 
 int
-cla_stringCopyHandler(
-    cla_parser_t *parser,
-    cla_option_t *option
-) {
-    (void) parser;
-
-    return option->argument
-        ? strcpy(option->value, option->argument), cla_noErrors
-        : cla_nullReferenceError;
-}
-
-int
-cla_stringReferenceHandler(
+cla_stringHandler(
     cla_parser_t *parser,
     cla_option_t *option
 ) {
@@ -128,6 +116,6 @@ cla_stringReferenceHandler(
 
     return option->argument
         /* @option->argument was set from mutable argv, so it's OK. */
-        ? option->value = (char *) option->argument, cla_noErrors
+        ? *((char **) option->valuePtr) = option->argument, cla_noErrors
         : cla_nullReferenceError;
 }

@@ -61,14 +61,14 @@ struct cla_option_t {
     /// Points to decoded value, may be of any type.
     /// Pointed-to value is typically stored within user context,
     /// and is set by handler when option is processed, optional.
-    void *value;
+    void *valuePtr;
 
     /// Callback function to be invoked when option is parsed, optional.
     cla_handler_t * const handler;
 
     /// Argument value fetched from CLI arguments string.
     /// Points to first argument character in argv, when arguments is specified.
-    char const *argument;
+    char *argument;
 
     /// If set to `true`, encountering this option stops further parsing.
     bool const doesStopParser;
@@ -159,22 +159,6 @@ cla_integerHandler;
 /// Default callback handler for string values.
 ///
 /// @details
-/// Deep-copies argument string into option value.
-///
-/// @warning
-/// No allocation is performed, allocated value is expected.
-///
-/// @returns
-/// Invalid option argument error when option argument is not set.
-///
-/// @returns
-/// Null reference error when option value is null.
-cla_handler_t
-cla_stringCopyHandler;
-
-/// Default callback handler for string values.
-///
-/// @details
 /// Shallow-copies argument string into option value.
 ///
 /// @warning
@@ -186,7 +170,7 @@ cla_stringCopyHandler;
 /// @returns
 /// Null reference error when option value is null.
 cla_handler_t
-cla_stringReferenceHandler;
+cla_stringHandler;
 
 #if defined(__cplusplus)
 }

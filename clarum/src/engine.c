@@ -44,11 +44,11 @@ getOption(
     return NULL;
 }
 
-static inline char const *
+static inline char *
 getArgument(
-    char const *str
+    char *str
 ) {
-    char const
+    char
         *argument = strchr(str, '=');
 
     if (argument)
@@ -61,7 +61,7 @@ getArgument(
 static inline int
 parseOption(
     cla_parser_t *parser,
-    char const *str,
+    char *str,
     bool byTag
 ) {
     switch (*str) {
@@ -103,7 +103,7 @@ parseOptions(
         status = cla_noErrors;
 
     for (; numberOfArguments-- && !status && !parser->isStopped; ++arguments) {
-        char const
+        char
             *argument = *arguments;
 
         if (!isEscapeCharacter(argument[0])) {
