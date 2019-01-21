@@ -19,6 +19,8 @@ enum {
     cla_noErrors = 0,
     cla_nullReferenceError,
     cla_illegalInputError,
+    cla_missingOptionError,
+    cla_unknowOptionError,
 };
 
 /// Callback type for handling non-built-in types of CLI arguments.
@@ -51,29 +53,35 @@ cla_handler_t(
 
 /// Represents single CLI option.
 struct cla_option_t {
-
-    /// Single character tag for short form specification, e.g. '-f', optional.
+    /// Single character tag (short form), e.g. 'f'.
     char const tag;
 
-    /// Full name for complete form specification, e.g. '--foo', optional.
+    /// String name (long form), e.g. 'foo'.
     char const *name;
 
-    /// Points to decoded value, may be of any type.
-    /// Pointed-to value is typically stored within user context,
-    /// and is set by handler when option is processed, optional.
-    void *valuePtr;
+    /// String synonym (long form), e.g. 'Foo'.  
+    char const *synonym;
 
-    /// Callback function to be invoked when option is parsed, optional.
+    /// Callback function to be invoked on parsing.
+    ///
+    /// @details
+    /// Default handlers require cla_option_t::valuePtr.
     cla_handler_t * const handler;
 
-    /// Argument value fetched from CLI arguments string.
-    /// Points to first argument character in argv, when arguments is specified.
+    /// Points to value decoded by handler.
+    void *valuePtr;
+
+    /// Points to option value in argv, set by parser.
     char *argument;
 
-    /// If set to `true`, encountering this option stops further parsing.
-    bool const doesStopParser;
+    /// Specifies whether this option stops further parsing.
+    bool const isTerminal;
 
-    bool isSet;
+    /// Specifies whether this option shall be present.
+    bool const isRequired;
+
+    /// Is set by parser iff option was encountered.
+    bool isReferenced;
 };
 
 /// Represents a context of CLI options parser.
@@ -85,36 +93,32 @@ struct cla_parser_t {
     /// Number of options.
     size_t numberOfOptions;
 
-    bool const doesStopOnUnknownOptions;
-
-    /// Is set iff parser encounters halting option.
-    ///
-    /// @see
-    /// ct_option_t
-    bool isStopped;
+    /// Specifies whether parser should terminate on unknown options.
+    bool const isLenient;
 
     /// Is set to first unprocessed option.
     ///
     /// @details
     /// Parser stops on first option which does not start with '-' character.
     char const *next;
+
+    /// Is set iff parser was terminated during parsing.
+    ///
+    /// @detail
+    /// Parser encountered
+    ///   + either terminal option (ct_option_t::isTerminal),
+    ///   + or unknown option while not being lenient (cla_parser_t::isLenient).
+    ///
+    /// @see
+    /// ct_option_t::isTerminal
+    /// cla_parser_t::isLenient
+    bool isTerminated;
 };
 
-/// Parses @p argc and @p argv against @p options collection.
+/// Parses @p argc and @p argv against collection of options.
 ///
-/// @details
-/// For each known encountered option `argument` field is set,
-/// and `handler` is invoked when present.
-///
-/// If encountered option is unknown, it is skipped.
-/// This allows for chaining parser invocations
-/// against different collections of options.
-///
-/// @note
-/// When invoked with @p argc less than 2, does nothing.
-///
-/// @param options
-/// [in, out] Collection of options.
+/// @param parser
+/// [in, out] Parser instance.
 ///
 /// @param argc
 /// [in] Number of CLI arguments.
@@ -124,6 +128,7 @@ struct cla_parser_t {
 ///
 /// @returns
 /// Null reference error on null @p options, or @p argv.
+/// Illegal input error on syntax errors.
 int
 cla_parseOptions(
     cla_parser_t *parser,

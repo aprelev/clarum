@@ -5,14 +5,7 @@ static inline bool
 isEscapeCharacter(
     char chr
 ) {
-    switch (chr) {
-        case '-': /* linux-style escape */
-        case '/': /* windows-style escape */
-            return true;
-
-        default:
-            return false;
-    }
+    return chr == '-' || chr == '/';
 }
 
 static inline bool
@@ -26,7 +19,29 @@ static inline bool
 isOptionCharacter(
     char chr
 ) {
-    return chr && !isEscapeCharacter(chr) && !isDelimiterCharacter(chr);
+    return chr
+        ? !isEscapeCharacter(chr) && !isDelimiterCharacter(chr)
+        : false;
+}
+
+static inline bool
+optionNameEquals(
+    cla_option_t const *option,
+    char const *str
+) {
+    return option->name
+        ? !memcmp(str, option->name, strlen(option->name))
+        : false;
+}
+
+static inline bool
+optionSynonymEquals(
+    cla_option_t const *option,
+    char const *str
+) {
+    return option->synonym
+        ? !memcmp(str, option->synonym, strlen(option->synonym))
+        : false;
 }
 
 static inline bool
@@ -35,10 +50,9 @@ isReferencedOption(
     char const *str,
     bool byTag
 ) {
-    if (byTag)
-        return *str == option->tag;
-    else
-        return !memcmp(str, option->name, strlen(option->name));
+    return byTag
+        ? *str == option->tag
+        : optionNameEquals(option, str) || optionSynonymEquals(option, str);
 }
 
 static inline cla_option_t *
@@ -64,7 +78,7 @@ getArgument(
 ) {
     for (size_t i = 0; i < strlen(str); ++i) {
         if (isDelimiterCharacter(str[i]))
-            /* Skips found delimiter. */
+            /* Increments to skip the delimiter. */
             return &str[i + 1];
     }
 
@@ -77,30 +91,30 @@ parseOption(
     char *str,
     bool byTag
 ) {
-    if (!str[0]) {
-        /* Argument is '--', this stops parsing by convention. */
-        return cla_noErrors;
-    }
+    if (!str[0])
+        /* @str = '--\0', this stops parsing by convention. */
+        return cla_noErrors; 
     
     if (isOptionCharacter(str[0])) {
         cla_option_t
             *option = getOption(parser, str, byTag);
 
         if (!option) {
-            parser->isStopped = parser->doesStopOnUnknownOptions;
-            return cla_noErrors;
+            return !parser->isLenient
+                ? parser->isTerminated = true, cla_unknowOptionError
+                : cla_noErrors;
         }
 
+        option->isReferenced = true;
         option->argument = getArgument(str);
-        option->isSet = true;
-        parser->isStopped = option->doesStopParser;
+        parser->isTerminated = option->isTerminal;
 
         return option->handler
             ? option->handler(parser, option)
             : cla_noErrors;
     }
 
-    /* Argument contains illegal characters sequence, e.g. '--='. */
+    /* @str has invalid syntax. */
     return cla_illegalInputError;
 }
 
@@ -113,7 +127,7 @@ parseOptions(
     int
         status = cla_noErrors;
 
-    for (; numberOfArguments-- && !status && !parser->isStopped; ++arguments) {
+    for (; numberOfArguments-- && !parser->isTerminated; ++arguments) {
         char
             *argument = *arguments;
 
@@ -124,16 +138,37 @@ parseOptions(
         }
 
         if (!isEscapeCharacter(argument[1])) {
-            /* Short '-x' or '-abc' (tag) form. */
-            for (size_t i = 1; isOptionCharacter(argument[i]) && !status; ++i)
+            /* Short '-x' or '-abc' form. */
+            for (size_t i = 1; isOptionCharacter(argument[i]); ++i) {
                 status = parseOption(parser, &argument[i], true);
+                if (status)
+                    return status;
+            }
         } else {
-            /* Complete '--name' (name) form. */
+            /* Long '--name' form. */
             status = parseOption(parser, &argument[2], false);
+            if (status)
+                return status;
         }
     }
 
     return status;
+}
+
+static inline bool
+isRequiredOptionMissing(
+    cla_option_t const *options,
+    size_t numberOfOptions
+) {
+    for (size_t i = 0; i < numberOfOptions; ++i) {
+        cla_option_t const
+            option = options[i];
+
+        if (option.isRequired && !option.isReferenced)
+            return true;
+    }
+
+    return false;
 }
 
 int
@@ -142,14 +177,24 @@ cla_parseOptions(
     int argc,
     char **argv
 ) {
+
     if (!parser || !argv)
         /* Null @parser or @argv. */
         return cla_nullReferenceError;
 
-    if (argc < 2)
-        /* No options passed. */
-        return cla_noErrors;
+    if (argc > 1) {
+        int
+            status;
 
-    /* Skips first argument (binary name). */
-    return parseOptions(parser, --argc, ++argv);
+        /* Skips first argument (binary name). */
+        status = parseOptions(parser, --argc, ++argv);
+        if (status)
+            return status;
+
+        /* Checks whether all required options were referenced. */
+        if (isRequiredOptionMissing(parser->options, parser->numberOfOptions))
+            return cla_missingOptionError;
+    }
+
+    return cla_noErrors;
 }

@@ -12,7 +12,7 @@ describe(clarum) {
             cla_parser_t
                 parser;
 
-            asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors, "tried to parse single argument");
+            asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors, "tried to parse binary name");
         }
 
         it("checks for null pointers") {
@@ -77,13 +77,13 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(value, true, "argument was not set");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(value, true, "option value was not decoded");
         }
     }
 
     subdesc(configurability) {
-        it("skips unknown options") {
+        it("can skip unknown options") {
             char
                 *argv[] = {"binary", "--sample=off", "--integer=100500"};
             int
@@ -103,24 +103,59 @@ describe(clarum) {
                 parser = {
                     .options = options,
                     .numberOfOptions = numberOfOptions,
-                    .doesStopOnUnknownOptions = false,
+                    .isLenient = true,
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors, "error was returned");
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(value, 100500, "value was not parsed");
+            asserteq(parser.isTerminated, false, "parser was terminated");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(value, 100500, "option value was not decoded");
         }
 
-        it("respects $doesStopParser setting") {
+        it("can terminate on unknown options") {
             char
-                *argv[] = {"binary", "--halts"};
+                *argv[] = {"binary", "--sample=off", "--integer=100500"};
             int
-                argc = sizeof argv / sizeof *argv;
+                argc = sizeof argv / sizeof *argv,
+                value = 0;
             cla_option_t
                 options[] = {{
-                        .tag = 'h',
+                        .tag = 'i',
+                        .name = "integer",
+                        .valuePtr = &value,
+                        .handler = &cla_integerHandler,
+                    },
+                };
+            size_t const
+                numberOfOptions = sizeof options / sizeof *options;
+            cla_parser_t
+                parser = {
+                    .options = options,
+                    .numberOfOptions = numberOfOptions,
+                    .isLenient = false,
+                };
+
+            asserteq(cla_parseOptions(&parser, argc, argv), cla_unknowOptionError, "error was not returned");
+            asserteq(parser.isTerminated, true, "parser was not terminated");
+            asserteq(options[0].isReferenced, false, "option was reported as referenced");
+            asserteq(value, 0, "option value was decoded");
+        }
+
+        it("respects terminal options") {
+            char
+                *argv[] = {"binary", "--halts", "--continue=yes"};
+            int
+                argc = sizeof argv / sizeof *argv;
+            bool
+                value = false;
+            cla_option_t
+                options[] = {{
                         .name = "halts",
-                        .doesStopParser = true,
+                        .isTerminal = true,
+                    },{
+                        .name = "continue",
+                        .handler = &cla_booleanHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -132,8 +167,9 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors, "error was returned");
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(parser.isStopped, true, "parser was not stopped");
+            asserteq(parser.isTerminated, true, "parser was not terminated");
+            asserteq(options[1].isReferenced, false, "second option was reported as referenced");
+            asserteq(value, false, "second option value was decoded");
         }
     }
 
@@ -146,10 +182,9 @@ describe(clarum) {
                 argc = sizeof argv / sizeof *argv;
             cla_option_t
                 options[] = {{
-                        .tag = 's',
                         .name = "string",
-                        .valuePtr = &value,
                         .handler = &cla_stringHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -161,8 +196,8 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq_str(value, "foo", "argument was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq_str(value, "foo", "option value was not set");
         }
 
         it("parses short string option") {
@@ -174,9 +209,8 @@ describe(clarum) {
             cla_option_t
                 options[] = {{
                         .tag = 's',
-                        .name = "string",
-                        .valuePtr = &value,
                         .handler = &cla_stringHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -188,8 +222,8 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq_str(value, "foo", "argument was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq_str(value, "foo", "option value was not set");
         }
 
         it("parses long integer option") {
@@ -201,10 +235,9 @@ describe(clarum) {
                 argc = sizeof argv / sizeof *argv;
             cla_option_t
                 options[] = {{
-                        .tag = 'i',
                         .name = "integer",
-                        .valuePtr = &value,
                         .handler = &cla_integerHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -216,8 +249,8 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(value, 100500, "argument was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(value, 100500, "option value was not decoded");
         }
 
         it("parses short integer option") {
@@ -230,9 +263,8 @@ describe(clarum) {
             cla_option_t
                 options[] = {{
                         .tag = 'i',
-                        .name = "integer",
-                        .valuePtr = &value,
                         .handler = &cla_integerHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -244,8 +276,8 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(value, 100500, "argument was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(value, 100500, "option value was not decoded");
         }
 
         it("parses long boolean option") {
@@ -257,10 +289,9 @@ describe(clarum) {
                 argc = sizeof argv / sizeof *argv;
             cla_option_t
                 options[] = {{
-                        .tag = 'b',
                         .name = "bool",
-                        .valuePtr = &value,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -272,8 +303,8 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(value, true, "argument was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(value, true, "option value was not decoded");
         }
 
         it("parses short boolean option") {
@@ -286,9 +317,8 @@ describe(clarum) {
             cla_option_t
                 options[] = {{
                         .tag = 'b',
-                        .name = "bool",
-                        .valuePtr = &value,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &value,
                     },
                 };
             size_t const
@@ -300,8 +330,8 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(value, true, "argument was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(value, true, "option value was not decoded");
         }
 
         it("parses multiple long options") {
@@ -317,17 +347,14 @@ describe(clarum) {
                 argc = sizeof argv / sizeof *argv;
             cla_option_t
                 options[] = {{
-                        .tag = 'i',
                         .name = "integer",
                         .valuePtr = &integerValue,
                         .handler = &cla_integerHandler,
                     }, {
-                        .tag = 'b',
                         .name = "bool",
                         .valuePtr = &booleanValue,
                         .handler = &cla_booleanHandler,
                     }, {
-                        .tag = 's',
                         .name = "string",
                         .valuePtr = &stringValue,
                         .handler = &cla_stringHandler,
@@ -342,12 +369,12 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(options[1].isSet, true, "value was not reported as set");
-            asserteq(options[2].isSet, true, "value was not reported as set");
-            asserteq(integerValue, 100500, "integer option was not parsed");
-            asserteq(booleanValue, true, "boolean option was not parsed");
-            asserteq(stringValue, "foo", "string option was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[1].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[2].isReferenced, true, "option was not reported as referenced");
+            asserteq(integerValue, 100500, "integer option value was not decoded");
+            asserteq(booleanValue, true, "boolean option value was not decoded");
+            asserteq(stringValue, "foo", "string option value was not set");
         }
 
         it("parses multiple short options") {
@@ -364,19 +391,16 @@ describe(clarum) {
             cla_option_t
                 options[] = {{
                         .tag = 'i',
-                        .name = "integer",
-                        .valuePtr = &integerValue,
                         .handler = &cla_integerHandler,
+                        .valuePtr = &integerValue,
                     }, {
                         .tag = 'b',
-                        .name = "bool",
-                        .valuePtr = &booleanValue,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &booleanValue,
                     }, {
                         .tag = 's',
-                        .name = "string",
-                        .valuePtr = &stringValue,
                         .handler = &cla_stringHandler,
+                        .valuePtr = &stringValue,
                     },
                 };
             size_t const
@@ -388,12 +412,12 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(options[1].isSet, true, "value was not reported as set");
-            asserteq(options[2].isSet, true, "value was not reported as set");
-            asserteq(integerValue, 100500, "integer option was not parsed");
-            asserteq(booleanValue, true, "boolean option was not parsed");
-            asserteq(stringValue, "foo", "string option was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[1].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[2].isReferenced, true, "option was not reported as referenced");
+            asserteq(integerValue, 100500, "integer option value was not decoded");
+            asserteq(booleanValue, true, "boolean option value was not decoded");
+            asserteq(stringValue, "foo", "string option value was not set");
         }
 
         it("parses multiple mixed options") {
@@ -410,19 +434,16 @@ describe(clarum) {
             cla_option_t
                 options[] = {{
                         .tag = 'i',
-                        .name = "integer",
-                        .valuePtr = &integerValue,
                         .handler = &cla_integerHandler,
+                        .valuePtr = &integerValue,
                     }, {
-                        .tag = 'b',
                         .name = "bool",
-                        .valuePtr = &booleanValue,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &booleanValue,
                     }, {
                         .tag = 's',
-                        .name = "string",
-                        .valuePtr = &stringValue,
                         .handler = &cla_stringHandler,
+                        .valuePtr = &stringValue,
                     },
                 };
             size_t const
@@ -434,12 +455,12 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(options[1].isSet, true, "value was not reported as set");
-            asserteq(options[2].isSet, true, "value was not reported as set");
-            asserteq(integerValue, 100500, "integer option was not parsed");
-            asserteq(booleanValue, true, "boolean option was not parsed");
-            asserteq(stringValue, "foo", "string option was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[1].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[2].isReferenced, true, "option was not reported as referenced");
+            asserteq(integerValue, 100500, "integer option value was not decoded");
+            asserteq(booleanValue, true, "boolean option value was not decoded");
+            asserteq(stringValue, "foo", "string option value was not set");
         }
 
         it("parses sequential short options") {
@@ -456,24 +477,20 @@ describe(clarum) {
             cla_option_t
                 options[] = {{
                         .tag = 'a',
-                        .name = "a",
-                        .valuePtr = &booleanValueA,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &booleanValueA,
                     }, {
                         .tag = 'b',
-                        .name = "b",
-                        .valuePtr = &booleanValueB,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &booleanValueB,
                     }, {
                         .tag = 'c',
-                        .name = "c",
-                        .valuePtr = &booleanValueC,
                         .handler = &cla_booleanHandler,
+                        .valuePtr = &booleanValueC,
                     }, {
-                        .tag = 's',
                         .name = "string",
-                        .valuePtr = &stringValue,
                         .handler = &cla_stringHandler,
+                        .valuePtr = &stringValue,
                     },
                 };
             size_t const
@@ -485,14 +502,14 @@ describe(clarum) {
                 };
 
             asserteq(cla_parseOptions(&parser, argc, argv), cla_noErrors);
-            asserteq(options[0].isSet, true, "value was not reported as set");
-            asserteq(options[1].isSet, true, "value was not reported as set");
-            asserteq(options[2].isSet, true, "value was not reported as set");
-            asserteq(options[3].isSet, true, "value was not reported as set");
-            asserteq(booleanValueA, true, "boolean option A was not parsed");
-            asserteq(booleanValueB, true, "boolean option B was not parsed");
-            asserteq(booleanValueC, true, "boolean option C was not parsed");
-            asserteq(stringValue, "foo", "string option was not parsed");
+            asserteq(options[0].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[1].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[2].isReferenced, true, "option was not reported as referenced");
+            asserteq(options[3].isReferenced, true, "option was not reported as referenced");
+            asserteq(booleanValueA, true, "boolean option A value was not decoded");
+            asserteq(booleanValueB, true, "boolean option B value was not decoded");
+            asserteq(booleanValueC, true, "boolean option C value was not decoded");
+            asserteq(stringValue, "foo", "string option value was not set");
         }
     }
 }
