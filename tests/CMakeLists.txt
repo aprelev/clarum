@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 
-project(clarum VERSION 0.1.0 LANGUAGES C)
+project(tests VERSION 0.1.0 LANGUAGES C)
 add_subdirectory(snow)
 
 add_executable(tests
